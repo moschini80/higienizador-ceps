@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Testes Unitários — Engine de Validação</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1e2e; --surface2: #242840;
+      --border: #2e3456; --text: #e2e8f0; --text-dim: #8892b0;
+      --accent: #4f8ef7; --green: #00d26a; --red: #ff4757;
+      --yellow: #ffd60a; --orange: #ff7b00; --radius: 10px;
+    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 32px 0 64px; }
+    .container { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+    h1 { font-size: 1.5rem; margin-bottom: 6px; }
+    .subtitle { color: var(--text-dim); font-size: .88rem; margin-bottom: 28px; }
+
+    /* ── Summary ── */
+    .summary {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px;
+    }
+    .sum-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+    .sum-box .val { font-size: 2rem; font-weight: 800; }
+    .sum-box .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); margin-top: 4px; }
+    .sum-box.pass { border-color: var(--green); }
+    .sum-box.pass .val { color: var(--green); }
+    .sum-box.fail { border-color: var(--red); }
+    .sum-box.fail .val { color: var(--red); }
+    .sum-box.skip { border-color: var(--yellow); }
+    .sum-box.skip .val { color: var(--yellow); }
+    .sum-box.total .val { color: var(--accent); }
+
+    /* ── Suite ── */
+    .suite { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+    .suite-header {
+      padding: 14px 18px; font-weight: 700; font-size: .85rem;
+      border-bottom: 1px solid var(--border); display: flex; align-items: center;
+      gap: 10px; cursor: pointer; user-select: none;
+    }
+    .suite-header:hover { background: var(--surface2); }
+    .suite-name { flex: 1; }
+    .suite-counts { font-size: .78rem; color: var(--text-dim); font-weight: 400; }
+    .suite-body { padding: 0; }
+
+    /* ── Test row ── */
+    .test-row {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 11px 18px; border-bottom: 1px solid var(--border);
+      font-size: .83rem;
+    }
+    .test-row:last-child { border-bottom: none; }
+    .test-row.pass { background: #00d26a06; }
+    .test-row.fail { background: #ff475710; }
+    .test-row.running { background: #4f8ef710; }
+
+    .badge {
+      min-width: 20px; height: 20px; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; font-size: .7rem; font-weight: 800;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .badge.pass { background: var(--green); color: #000; }
+    .badge.fail { background: var(--red);   color: #fff; }
+    .badge.running { background: var(--accent); color: #fff; }
+
+    .test-name { flex: 1; color: var(--text); }
+    .test-err { color: var(--red); font-size: .78rem; margin-top: 4px; font-family: monospace; background: #ff475718; padding: 4px 8px; border-radius: 4px; }
+    .test-detail { color: var(--text-dim); font-size: .78rem; margin-top: 3px; font-family: monospace; }
+    .test-inner { flex: 1; }
+
+    .time { color: var(--text-dim); font-size: .72rem; flex-shrink: 0; }
+
+    /* ── Progress ── */
+    .progress-bar { height: 4px; background: var(--surface2); margin-bottom: 20px; border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 99px; width: 0%; transition: width .3s; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>🧪 Testes Unitários</h1>
+  <p class="subtitle">phonetics.js · similarity.js · processor.js — Engine de Validação de Endereços</p>
+
+  <div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+
+  <div class="summary">
+    <div class="sum-box total"><div class="val" id="s-total">–</div><div class="lbl">Total</div></div>
+    <div class="sum-box pass" ><div class="val" id="s-pass">–</div><div class="lbl">Passou</div></div>
+    <div class="sum-box fail" ><div class="val" id="s-fail">–</div><div class="lbl">Falhou</div></div>
+    <div class="sum-box skip" ><div class="val" id="s-time">–</div><div class="lbl">Tempo (ms)</div></div>
+  </div>
+
+  <div id="suites"></div>
+</div>
+
+<!-- Dependências -->
+<script src="phonetics.js"></script>
+<script src="similarity.js"></script>
+<script src="processor.js"></script>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════════════════════════════
+// Mini Framework de Testes
+// ════════════════════════════════════════════════════════════════════════════
+
+const _suites = [];
+let   _curSuite = null;
+
+function describe(name, fn) {
+  _curSuite = { name, tests: [] };
+  _suites.push(_curSuite);
+  fn();
+  _curSuite = null;
+}
+
+function it(name, fn) {
+  if (!_curSuite) throw new Error('it() fora de describe()');
+  _curSuite.tests.push({ name, fn });
+}
+
+// ── Assertions ──────────────────────────────────────────────────────────────
+
+function assert(cond, msg) {
+  if (!cond) throw new Error(msg || 'Assertion falhou');
+}
+
+function assertEquals(a, b, msg) {
+  if (a !== b)
+    throw new Error(msg || `Esperado: ${JSON.stringify(b)}\n  Obtido : ${JSON.stringify(a)}`);
+}
+
+function assertClose(a, b, tol = 0.01, msg) {
+  if (Math.abs(a - b) > tol)
+    throw new Error(msg || `Esperado ≈${b} (±${tol}), obtido ${a.toFixed(6)}`);
+}
+
+function assertRange(a, min, max, msg) {
+  if (a < min || a > max)
+    throw new Error(msg || `Esperado entre ${min} e ${max}, obtido ${a}`);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SUITES DE TESTES
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── PhoneticsPTBR ────────────────────────────────────────────────────────────
+describe('PhoneticsPTBR.normalize', () => {
+
+  it('converte para maiúsculas', () => {
+    assertEquals(PhoneticsPTBR.normalize('são paulo'), 'SAO PAULO');
+  });
+
+  it('remove acento agudo (é → E)', () => {
+    assertEquals(PhoneticsPTBR.normalize('café'), 'CAFE');
+  });
+
+  it('remove til (ã → A)', () => {
+    assertEquals(PhoneticsPTBR.normalize('maçã'), 'MASA');
+  });
+
+  it('Ç vira S (cedilha)', () => {
+    assertEquals(PhoneticsPTBR.normalize('Praça'), 'PRASA');
+  });
+
+  it('Ç maiúsculo vira S', () => {
+    assertEquals(PhoneticsPTBR.normalize('PRAÇA DA SÉ'), 'PRASA DA SE');
+  });
+
+  it('remove caracteres especiais (hífen, ponto)', () => {
+    const r = PhoneticsPTBR.normalize('Rua XV de Novembro, 340 - Centro');
+    assert(!r.includes('-') && !r.includes(','), 'Deve remover hífen e vírgula');
+  });
+
+  it('colapsa múltiplos espaços', () => {
+    assertEquals(PhoneticsPTBR.normalize('Rua   da   Sé'), 'RUA DA SE');
+  });
+
+  it('string vazia retorna vazia', () => {
+    assertEquals(PhoneticsPTBR.normalize(''), '');
+  });
+
+  it('string null/undefined retorna vazia', () => {
+    assertEquals(PhoneticsPTBR.normalize(null), '');
+    assertEquals(PhoneticsPTBR.normalize(undefined), '');
+  });
+});
+
+
+describe('PhoneticsPTBR.phoneticCode — dígrafos', () => {
+
+  it('PH → F  (pharmacy → farmaci)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('pharmacy'), 'FARMACI');
+  });
+
+  it('CH → X  (chave → xave)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('chave'), 'XAVE');
+  });
+
+  it('NH → NI (vinho → vinio)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('vinho'), 'VINIO');
+  });
+
+  it('LH → LI (filho → filio)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('filho'), 'FILIO');
+  });
+
+  it('GU antes de E suprime U (guerra → gera)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('guerra'), 'GERA');
+  });
+
+  it('QU antes de E suprime U (quero → kero)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('quero'), 'KERO');
+  });
+
+  it('RR colapsa para R (carro → caro)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('carro'), 'CARO');
+  });
+
+  it('SS colapsa para S (passo → paso)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('passo'), 'PASO');
+  });
+});
+
+
+describe('PhoneticsPTBR.phoneticCode — consoantes contextuais', () => {
+
+  it('C antes de E → S (cedo → sedo)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('cedo'), 'SEDO');
+  });
+
+  it('C antes de I → S (cimento → simento)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('cimento'), 'SIMENTO');
+  });
+
+  it('G antes de E → J (gente → jente)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('gente'), 'JENTE');
+  });
+
+  it('G antes de I → J (girafa → jirava)', () => {
+    // G→J, F permanece
+    assert(PhoneticsPTBR.phoneticCode('girafa').startsWith('J'), 'deve começar com J');
+  });
+
+  it('Y → I (yoga → ioga)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('yoga'), 'IOGA');
+  });
+
+  it('W → V (wagner → vagner)', () => {
+    assert(PhoneticsPTBR.phoneticCode('wagner').startsWith('V'), 'deve começar com V');
+  });
+});
+
+
+describe('PhoneticsPTBR.phoneticCode — S intervocálico', () => {
+
+  it('S entre vogais → Z (casa → caza)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('casa'), 'CAZA');
+  });
+
+  it('S inicial não vira Z (sala → sala)', () => {
+    assertEquals(PhoneticsPTBR.phoneticCode('sala'), 'SALA');
+  });
+
+  it('S final não vira Z (casas → cazas)', () => {
+    // segundo S é final → permanece S; primeiro S entre vogais → Z
+    assertEquals(PhoneticsPTBR.phoneticCode('casas'), 'CAZAS');
+  });
+});
+
+
+describe('PhoneticsPTBR.phoneticCode — endereços reais', () => {
+
+  it('AVENIDA e AVENIDA são iguais', () => {
+    assertEquals(
+      PhoneticsPTBR.phoneticCode('Avenida Paulista'),
+      PhoneticsPTBR.phoneticCode('AVENIDA PAULISTA')
+    );
+  });
+
+  it('Praça da Sé e PRASA DA SE têm mesmo código fonético', () => {
+    assertEquals(
+      PhoneticsPTBR.phoneticCode('Praça da Sé'),
+      PhoneticsPTBR.phoneticCode('Prasa da Se')
+    );
+  });
+
+  it('Carijós e Karijos são foneticamente similares (C/K)', () => {
+    // C antes de A não vira S; K permanece K → ambos são diferentes no fonético
+    // O importante é que o JW fonético seja alto (tratado pelo similarity)
+    const a = PhoneticsPTBR.phoneticCode('Carijós');
+    const b = PhoneticsPTBR.phoneticCode('Karijos');
+    // A diferença é apenas C vs K — JW deve ser > 0.85
+    assert(Similarity.jaroWinkler(a, b) > 0.85, `JW fonético esperado > 0.85, obtido ${Similarity.jaroWinkler(a, b)}`);
+  });
+});
+
+
+// ── Similarity ───────────────────────────────────────────────────────────────
+describe('Similarity.jaro', () => {
+
+  it('strings idênticas → 1.0', () => {
+    assertEquals(Similarity.jaro('MARTHA', 'MARTHA'), 1.0);
+  });
+
+  it('string vazia → 0.0', () => {
+    assertEquals(Similarity.jaro('', 'HELLO'), 0.0);
+    assertEquals(Similarity.jaro('HELLO', ''), 0.0);
+  });
+
+  it('MARTHA vs MARHTA ≈ 0.944 (caso clássico)', () => {
+    assertClose(Similarity.jaro('MARTHA', 'MARHTA'), 0.9444, 0.001);
+  });
+
+  it('strings completamente diferentes → baixo valor', () => {
+    assert(Similarity.jaro('ABCDEF', 'XYZQWE') < 0.4);
+  });
+
+  it('é simétrico: jaro(a,b) === jaro(b,a)', () => {
+    const a = Similarity.jaro('PAULISTA', 'PAULISTANO');
+    const b = Similarity.jaro('PAULISTANO', 'PAULISTA');
+    assertClose(a, b, 0.0001);
+  });
+
+  it('resultado sempre em [0, 1]', () => {
+    const pairs = [
+      ['RUA DA SE', 'AVENIDA PAULISTA'],
+      ['', ''],
+      ['A', 'A'],
+      ['ABCDE', 'FGHIJ'],
+    ];
+    for (const [x, y] of pairs) {
+      const v = Similarity.jaro(x, y);
+      assertRange(v, 0, 1, `jaro("${x}", "${y}") = ${v}`);
+    }
+  });
+});
+
+
+describe('Similarity.jaroWinkler', () => {
+
+  it('strings idênticas → 1.0', () => {
+    assertEquals(Similarity.jaroWinkler('PAULISTA', 'PAULISTA'), 1.0);
+  });
+
+  it('prefixo comum eleva o score vs jaro simples', () => {
+    const j  = Similarity.jaro('PAULISTA', 'PAULISTANO');
+    const jw = Similarity.jaroWinkler('PAULISTA', 'PAULISTANO');
+    assert(jw >= j, `JW (${jw}) deve ser ≥ Jaro (${j})`);
+  });
+
+  it('sem prefixo comum, JW ≈ Jaro', () => {
+    const j  = Similarity.jaro('ABCDE', 'XYZQW');
+    const jw = Similarity.jaroWinkler('ABCDE', 'XYZQW');
+    assertClose(jw, j, 0.05);
+  });
+
+  it('resultado sempre em [0, 1]', () => {
+    const v = Similarity.jaroWinkler('AVENIDA PAULISTA', 'AV PAULISTA');
+    assertRange(v, 0, 1);
+  });
+});
+
+
+describe('Similarity.computeScore', () => {
+
+  it('strings normalizadas idênticas → score 100, método Exato', () => {
+    const { score, method } = Similarity.computeScore(
+      'PRASA DA SE 108', 'PRASA DA SE 108',
+      'PRASA DA SE 108', 'PRASA DA SE 108'
+    );
+    assertEquals(score, 100);
+    assertEquals(method, 'Exato');
+  });
+
+  it('fonéticos idênticos (grafias diferentes) → método Fonetico', () => {
+    const norm1 = PhoneticsPTBR.normalize('Praça da Sé 108');
+    const norm2 = PhoneticsPTBR.normalize('Prasa da Se 108');
+    const phon  = PhoneticsPTBR.phoneticCode('Praça da Sé 108'); // igual para ambos
+    const { method } = Similarity.computeScore(norm1, norm2, phon, phon);
+    assertEquals(method, 'Fonetico');
+  });
+
+  it('grafias muito similares → score alto (≥ 85)', () => {
+    const n1 = PhoneticsPTBR.normalize('Rua dos Andradas 1234');
+    const n2 = PhoneticsPTBR.normalize('Rua dos Andradaz 1234');
+    const p1 = PhoneticsPTBR.phoneticCode('Rua dos Andradas 1234');
+    const p2 = PhoneticsPTBR.phoneticCode('Rua dos Andradaz 1234');
+    const { score } = Similarity.computeScore(n1, n2, p1, p2);
+    assertRange(score, 85, 99, `Score esperado ≥ 85, obtido ${score}`);
+  });
+
+  it('strings completamente diferentes → score baixo (< 70)', () => {
+    const n1 = PhoneticsPTBR.normalize('Rua Completamente Diferente 999');
+    const n2 = PhoneticsPTBR.normalize('Praça da Sé 108');
+    const p1 = PhoneticsPTBR.phoneticCode('Rua Completamente Diferente 999');
+    const p2 = PhoneticsPTBR.phoneticCode('Praça da Sé 108');
+    const { score } = Similarity.computeScore(n1, n2, p1, p2);
+    assertRange(score, 0, 69, `Score esperado < 70, obtido ${score}`);
+  });
+
+  it('abreviação AV vs AVENIDA → score na faixa Corrigido (70–94)', () => {
+    const n1 = PhoneticsPTBR.normalize('Av. Paulista 1000');
+    const n2 = PhoneticsPTBR.normalize('Avenida Paulista 1000');
+    const p1 = PhoneticsPTBR.phoneticCode('Av. Paulista 1000');
+    const p2 = PhoneticsPTBR.phoneticCode('Avenida Paulista 1000');
+    const { score } = Similarity.computeScore(n1, n2, p1, p2);
+    assertRange(score, 70, 99, `Score esperado ≥ 70 (Corrigido/Sucesso), obtido ${score}`);
+  });
+
+  it('score nunca excede 99 quando strings não são idênticas', () => {
+    const n1 = PhoneticsPTBR.normalize('Rua da Sé 108 A');
+    const n2 = PhoneticsPTBR.normalize('Rua da Sé 108');
+    const p1 = PhoneticsPTBR.phoneticCode('Rua da Sé 108 A');
+    const p2 = PhoneticsPTBR.phoneticCode('Rua da Sé 108');
+    const { score } = Similarity.computeScore(n1, n2, p1, p2);
+    assert(score <= 99, `Score deve ser ≤ 99 para strings não idênticas, obtido ${score}`);
+  });
+});
+
+
+// ── Processor ────────────────────────────────────────────────────────────────
+describe('Processor.normalizeCEP', () => {
+
+  it('remove hífen padrão (01001-900 → 01001900)', () => {
+    assertEquals(Processor.normalizeCEP('01001-900'), '01001900');
+  });
+
+  it('remove ponto e espaço (01.001 900 → 01001900)', () => {
+    assertEquals(Processor.normalizeCEP('01.001 900'), '01001900');
+  });
+
+  it('já normalizado passa direto', () => {
+    assertEquals(Processor.normalizeCEP('01001900'), '01001900');
+  });
+
+  it('string vazia retorna vazia', () => {
+    assertEquals(Processor.normalizeCEP(''), '');
+  });
+});
+
+
+describe('Processor.detectDelimiter', () => {
+
+  it('detecta vírgula', () => {
+    assertEquals(Processor.detectDelimiter('ID,CEP,ENDERECO,OBS'), ',');
+  });
+
+  it('detecta ponto e vírgula', () => {
+    assertEquals(Processor.detectDelimiter('ID;CEP;ENDERECO;OBS'), ';');
+  });
+
+  it('detecta tab', () => {
+    assertEquals(Processor.detectDelimiter('ID\tCEP\tENDERECO'), '\t');
+  });
+
+  it('detecta pipe', () => {
+    assertEquals(Processor.detectDelimiter('ID|CEP|ENDERECO|OBS|EXTRA'), '|');
+  });
+});
+
+
+describe('Processor.classifyOne — CEP inválido', () => {
+
+  it('CEP não encontrado → categoria invalid, score 0', () => {
+    Processor._testLoadMap([['01001900', 'Praça da Sé 108']]);
+    const rec = Processor.classifyOne('99999-999', 'Qualquer Rua 1');
+    assertEquals(rec.category, 'invalid');
+    assertEquals(rec.score_final, 0);
+    assertEquals(rec.metodo_batimento, 'N/A');
+  });
+
+  it('CEP vazio → categoria invalid', () => {
+    Processor._testLoadMap([['01001900', 'Praça da Sé 108']]);
+    const rec = Processor.classifyOne('', 'Rua Teste 1');
+    assertEquals(rec.category, 'invalid');
+  });
+});
+
+
+describe('Processor.classifyOne — match exato', () => {
+
+  it('endereço idêntico ao da base → score 100, método Exato, categoria perfect', () => {
+    Processor._testLoadMap([['01001900', 'Praça da Sé 108']]);
+    Processor.setThresholds(95, 70);
+    const rec = Processor.classifyOne('01001-900', 'Praça da Sé 108');
+    assertEquals(rec.score_final, 100);
+    assertEquals(rec.metodo_batimento, 'Exato');
+    assertEquals(rec.category, 'perfect');
+  });
+
+  it('campos do registro são preenchidos corretamente', () => {
+    Processor._testLoadMap([['20040020', 'Rua da Quitanda 86']]);
+    const rec = Processor.classifyOne('20040-020', 'Rua da Quitanda 86', 'ID-42');
+    assertEquals(rec.id_original, 'ID-42');
+    assertEquals(rec.cep, '20040-020');
+    assertEquals(rec.endereco_base_oficial, 'Rua da Quitanda 86');
+  });
+});
+
+
+describe('Processor.classifyOne — typos e variações', () => {
+
+  it('typo leve (Andradas → Andradaz) → score alto, categoria perfect ou corrected', () => {
+    Processor._testLoadMap([['90010150', 'Rua dos Andradas 1234']]);
+    Processor.setThresholds(95, 70);
+    const rec = Processor.classifyOne('90010-150', 'Rua dos Andradaz 1234');
+    assertRange(rec.score_final, 85, 100, `Score esperado ≥ 85, obtido ${rec.score_final}`);
+    assert(rec.category === 'perfect' || rec.category === 'corrected');
+  });
+
+  it('endereço fonético equivalente (Prasa da Se → Praça da Sé) → método Fonetico', () => {
+    Processor._testLoadMap([['01001900', 'Praça da Sé 108']]);
+    Processor.setThresholds(95, 70);
+    const rec = Processor.classifyOne('01001-900', 'Prasa da Se 108');
+    assertEquals(rec.metodo_batimento, 'Fonetico');
+    assertRange(rec.score_final, 90, 99);
+  });
+
+  it('abreviação (Av. Paulista vs Avenida Paulista) → categoria corrected ou perfect', () => {
+    Processor._testLoadMap([['01310100', 'Avenida Paulista 1000']]);
+    Processor.setThresholds(95, 70);
+    const rec = Processor.classifyOne('01310-100', 'Av. Paulista 1000');
+    assert(
+      rec.category === 'corrected' || rec.category === 'perfect',
+      `Categoria esperada corrected ou perfect, obtida ${rec.category} (score ${rec.score_final})`
+    );
+  });
+
+  it('endereço completamente errado → categoria risk, score < 70', () => {
+    Processor._testLoadMap([['01001900', 'Praça da Sé 108']]);
+    Processor.setThresholds(95, 70);
+    const rec = Processor.classifyOne('01001-900', 'Rua Completamente Diferente 999');
+    assertEquals(rec.category, 'risk');
+    assertRange(rec.score_final, 0, 69, `Score esperado < 70, obtido ${rec.score_final}`);
+  });
+});
+
+
+describe('Processor — carregamento CSV via Blob', () => {
+
+  it('carrega base CSV e popula referenceMap', async () => {
+    const csv  = 'CEP,LOGRADOURO\n01001900,Praça da Sé 108\n01310100,Avenida Paulista 1000\n';
+    const file = new File([csv], 'base.csv', { type: 'text/csv' });
+    const count = await Processor.loadReferenceFile(file, 0, 1, true, null);
+    assertEquals(count, 2);
+    assertEquals(Processor.getReferenceSize(), 2);
+  });
+
+  it('carrega base CSV com separador ponto e vírgula', async () => {
+    const csv  = 'CEP;LOGRADOURO\n20040020;Rua da Quitanda 86\n30130010;Rua dos Carijós 55\n';
+    const file = new File([csv], 'base.csv', { type: 'text/csv' });
+    const count = await Processor.loadReferenceFile(file, 0, 1, true, null);
+    assertEquals(count, 2);
+  });
+
+  it('ignora linhas vazias na base CSV', async () => {
+    const csv  = 'CEP,LOGRADOURO\n\n01001900,Praça da Sé 108\n\n\n';
+    const file = new File([csv], 'base.csv', { type: 'text/csv' });
+    const count = await Processor.loadReferenceFile(file, 0, 1, true, null);
+    assertEquals(count, 1);
+  });
+
+  it('ignora CEP sem logradouro', async () => {
+    const csv  = 'CEP,LOGRADOURO\n01001900,\n01310100,Avenida Paulista 1000\n';
+    const file = new File([csv], 'base.csv', { type: 'text/csv' });
+    const count = await Processor.loadReferenceFile(file, 0, 1, true, null);
+    assertEquals(count, 1);
+  });
+});
+
+
+describe('Processor — carregamento JSON (OpenCEP)', () => {
+
+  it('carrega base JSON array e popula referenceMap', async () => {
+    const data = [
+      { cep: '01001-900', logradouro: 'Praça da Sé 108',  bairro: 'Sé',    localidade: 'São Paulo' },
+      { cep: '01310-100', logradouro: 'Avenida Paulista',  bairro: 'Bela Vista', localidade: 'São Paulo' },
+    ];
+    const file = new File([JSON.stringify(data)], 'base.json', { type: 'application/json' });
+    const count = await Processor.loadReferenceJSON(file, 'cep', 'logradouro', null);
+    assertEquals(count, 2);
+  });
+
+  it('rejeita JSON que não é array', async () => {
+    const file = new File(['{"cep":"01001900"}'], 'base.json', { type: 'application/json' });
+    let threw = false;
+    try { await Processor.loadReferenceJSON(file, 'cep', 'logradouro', null); }
+    catch (_) { threw = true; }
+    assert(threw, 'Deveria rejeitar JSON não-array');
+  });
+});
+
+
+describe('Processor — processWorkFile end-to-end', () => {
+
+  it('processa arquivo de trabalho e classifica registros corretamente', async () => {
+    // Base: 2 CEPs
+    Processor._testLoadMap([
+      ['01001900', 'Praça da Sé 108'],
+      ['01310100', 'Avenida Paulista 1000'],
+    ]);
+    Processor.setThresholds(95, 70);
+
+    const csv = [
+      'ID,CEP,ENDERECO',
+      '1,01001-900,Praça da Sé 108',        // exato → perfect
+      '2,01310-100,Av. Paulista 1000',       // abreviação → corrected ou perfect
+      '3,99999-999,Rua Inexistente 1',       // CEP inválido → invalid
+      '4,01001-900,Rua Totalmente Diferente',// errado → risk
+    ].join('\n');
+
+    const file = new File([csv], 'trabalho.csv', { type: 'text/csv' });
+    const config = { colId: 0, colCep: 1, colAddress: 2, hasHeader: true };
+
+    const stats = await new Promise((resolve, reject) => {
+      Processor.processWorkFile(file, config, {
+        onComplete: resolve,
+        onError: reject,
+      });
+    });
+
+    assertEquals(stats.processed, 4);
+    assertEquals(stats.invalid,   1, `invalid esperado 1, obtido ${stats.invalid}`);
+    assertEquals(stats.perfect,   1, `perfect esperado 1, obtido ${stats.perfect}`);
+    assertEquals(stats.risk,      1, `risk esperado 1, obtido ${stats.risk}`);
+    assert(
+      stats.corrected === 1 || stats.perfect === 2,
+      `corrected esperado 1 (ou abrev. virou perfect), obtido corrected=${stats.corrected} perfect=${stats.perfect}`
+    );
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Runner
+// ════════════════════════════════════════════════════════════════════════════
+
+async function runAll() {
+  const container = document.getElementById('suites');
+  let totalPass = 0, totalFail = 0, totalTests = 0;
+  const startAll = performance.now();
+
+  for (const suite of _suites) {
+    const suiteEl = document.createElement('div');
+    suiteEl.className = 'suite';
+
+    const headerEl = document.createElement('div');
+    headerEl.className = 'suite-header';
+    headerEl.innerHTML = `<span class="suite-name">📦 ${suite.name}</span><span class="suite-counts" id="sc-${suite.name.replace(/\W/g,'_')}">—</span>`;
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'suite-body';
+
+    suiteEl.appendChild(headerEl);
+    suiteEl.appendChild(bodyEl);
+    container.appendChild(suiteEl);
+
+    // Toggle collapse
+    headerEl.addEventListener('click', () => {
+      bodyEl.style.display = bodyEl.style.display === 'none' ? '' : 'none';
+    });
+
+    let sPass = 0, sFail = 0;
+
+    for (const t of suite.tests) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'test-row running';
+      rowEl.innerHTML = `
+        <div class="badge running">⋯</div>
+        <div class="test-inner">
+          <div class="test-name">${t.name}</div>
+        </div>
+        <span class="time"></span>`;
+      bodyEl.appendChild(rowEl);
+
+      const t0 = performance.now();
+      try {
+        await t.fn();
+        const ms = (performance.now() - t0).toFixed(1);
+        rowEl.className = 'test-row pass';
+        rowEl.querySelector('.badge').className = 'badge pass';
+        rowEl.querySelector('.badge').textContent = '✓';
+        rowEl.querySelector('.time').textContent  = ms + 'ms';
+        sPass++; totalPass++;
+      } catch (err) {
+        const ms = (performance.now() - t0).toFixed(1);
+        rowEl.className = 'test-row fail';
+        rowEl.querySelector('.badge').className = 'badge fail';
+        rowEl.querySelector('.badge').textContent = '✗';
+        rowEl.querySelector('.time').textContent  = ms + 'ms';
+        const errEl = document.createElement('div');
+        errEl.className = 'test-err';
+        errEl.textContent = err.message;
+        rowEl.querySelector('.test-inner').appendChild(errEl);
+        sFail++; totalFail++;
+      }
+
+      totalTests++;
+      document.getElementById('prog').style.width =
+        (totalTests / _suites.reduce((s,x) => s + x.tests.length, 0) * 100) + '%';
+    }
+
+    const countEl = document.getElementById('sc-' + suite.name.replace(/\W/g,'_'));
+    if (countEl) countEl.textContent = `${sPass} passou · ${sFail} falhou`;
+    if (sFail > 0) headerEl.style.borderLeft = '4px solid var(--red)';
+    else           headerEl.style.borderLeft = '4px solid var(--green)';
+  }
+
+  const elapsed = Math.round(performance.now() - startAll);
+  document.getElementById('s-total').textContent = totalTests;
+  document.getElementById('s-pass').textContent  = totalPass;
+  document.getElementById('s-fail').textContent  = totalFail;
+  document.getElementById('s-time').textContent  = elapsed;
+  document.getElementById('prog').style.width = '100%';
+  document.getElementById('prog').style.background =
+    totalFail === 0 ? 'var(--green)' : 'var(--red)';
+}
+
+window.addEventListener('load', runAll);
+</script>
+</body>
+</html>

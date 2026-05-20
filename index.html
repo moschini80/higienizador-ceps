@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engine de Validação de Endereços</title>
+  <style>
+    /* ── Reset & Variáveis ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1e2e;
+      --surface2:  #242840;
+      --border:    #2e3456;
+      --text:      #e2e8f0;
+      --text-dim:  #8892b0;
+      --accent:    #4f8ef7;
+      --accent-h:  #6fa3ff;
+
+      --green:     #00d26a;
+      --green-dim: #00d26a28;
+      --yellow:    #ffd60a;
+      --yellow-dim:#ffd60a28;
+      --orange:    #ff7b00;
+      --orange-dim:#ff7b0028;
+      --red:       #ff4757;
+      --red-dim:   #ff475728;
+
+      --radius:    10px;
+      --shadow:    0 4px 24px #00000040;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 60px;
+    }
+
+    /* ── Layout ────────────────────────────────────────────────────────── */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+
+    header {
+      background: linear-gradient(135deg, #1a1e2e 0%, #242840 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 0;
+      margin-bottom: 32px;
+    }
+    header .container { display: flex; align-items: center; gap: 16px; }
+    .logo { font-size: 2rem; }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: var(--text); }
+    header p  { font-size: .85rem; color: var(--text-dim); margin-top: 4px; }
+
+    /* ── Cards / Sections ───────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--accent);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Formulário ─────────────────────────────────────────────────────── */
+    .form-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 120px; }
+    .form-group label { font-size: .8rem; color: var(--text-dim); font-weight: 600; }
+
+    input[type="file"] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: .85rem;
+      cursor: pointer;
+      width: 100%;
+    }
+    input[type="file"]:hover { border-color: var(--accent); }
+
+    input[type="number"], select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 12px;
+      color: var(--text);
+      font-size: .85rem;
+      width: 100%;
+      appearance: none;
+    }
+    input[type="number"]:focus, select:focus {
+      outline: 2px solid var(--accent);
+      border-color: transparent;
+    }
+
+    .checkbox-row { display: flex; align-items: center; gap: 8px; }
+    .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+    .checkbox-row label { font-size: .85rem; color: var(--text-dim); cursor: pointer; }
+
+    /* ── Botões ─────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 20px;
+      border-radius: 7px;
+      border: none;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-primary:not(:disabled):hover  { background: var(--accent-h); }
+    .btn-outline  { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:not(:disabled):hover  { border-color: var(--accent); color: var(--accent); }
+    .btn-danger   { background: var(--red); color: #fff; }
+    .btn-danger:not(:disabled):hover   { opacity: .85; }
+    .btn-sm { padding: 7px 14px; font-size: .82rem; }
+
+    .action-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+    /* ── Ref status ─────────────────────────────────────────────────────── */
+    .ref-status { font-size: .82rem; padding: 6px 12px; border-radius: 5px; margin-top: 10px; display: inline-block; }
+    .ref-status--loading { background: #ffd60a18; color: var(--yellow); }
+    .ref-status--ok      { background: #00d26a18; color: var(--green);  }
+    .ref-status--error   { background: #ff475718; color: var(--red);    }
+
+    /* ── Sliders ────────────────────────────────────────────────────────── */
+    .slider-group { display: flex; flex-direction: column; gap: 8px; }
+    .slider-row   { display: flex; align-items: center; gap: 12px; }
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      height: 4px;
+      cursor: pointer;
+    }
+    .slider-val { min-width: 42px; text-align: right; font-weight: 700; font-size: .9rem; }
+
+    .thresholds-legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .legend-pill {
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .legend-pill span { display: block; font-size: .75rem; font-weight: 400; margin-top: 2px; opacity: .8; }
+    .pill-green  { background: var(--green-dim);  color: var(--green);  border: 1px solid var(--green);  }
+    .pill-yellow { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow); }
+    .pill-orange { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange); }
+    .pill-red    { background: var(--red-dim);    color: var(--red);    border: 1px solid var(--red);    }
+
+    /* ── Dashboard ──────────────────────────────────────────────────────── */
+    #dashboard { display: none; }
+
+    .processing-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    #processing-status { font-weight: 700; font-size: 1.05rem; }
+
+    .metrics-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .metric-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      flex: 1;
+      min-width: 130px;
+      text-align: center;
+    }
+    .metric-box .metric-label { font-size: .72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; }
+    .metric-box .metric-value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+
+    /* Overall bar */
+    .overall-bar-wrap {
+      background: var(--surface2);
+      border-radius: 8px;
+      overflow: hidden;
+      height: 10px;
+      margin-bottom: 6px;
+    }
+    .overall-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--green));
+      border-radius: 8px;
+      width: 0%;
+      transition: width .4s;
+    }
+    .bar-label { font-size: .78rem; color: var(--text-dim); text-align: right; }
+
+    /* Category cards */
+    .categories-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .cat-card {
+      border-radius: 10px;
+      padding: 18px;
+      border: 1px solid;
+    }
+    .cat-card--perfect   { background: var(--green-dim);  border-color: var(--green);  }
+    .cat-card--corrected { background: var(--yellow-dim); border-color: var(--yellow); }
+    .cat-card--risk      { background: var(--orange-dim); border-color: var(--orange); }
+    .cat-card--invalid   { background: var(--red-dim);    border-color: var(--red);    }
+
+    .cat-icon  { font-size: 1.6rem; }
+    .cat-label { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-top: 8px; }
+    .cat-count { font-size: 2rem; font-weight: 800; margin-top: 4px; line-height: 1; }
+    .cat-pct   { font-size: .85rem; opacity: .75; margin-top: 2px; }
+
+    .cat-bar-wrap { background: #ffffff18; border-radius: 99px; height: 5px; margin-top: 12px; overflow: hidden; }
+    .cat-bar-fill { height: 100%; border-radius: 99px; width: 0%; transition: width .4s; }
+    .cat-card--perfect   .cat-bar-fill { background: var(--green);  }
+    .cat-card--corrected .cat-bar-fill { background: var(--yellow); }
+    .cat-card--risk      .cat-bar-fill { background: var(--orange); }
+    .cat-card--invalid   .cat-bar-fill { background: var(--red);    }
+
+    .cat-card--perfect   .cat-count, .cat-card--perfect   .cat-label { color: var(--green);  }
+    .cat-card--corrected .cat-count, .cat-card--corrected .cat-label { color: var(--yellow); }
+    .cat-card--risk      .cat-count, .cat-card--risk      .cat-label { color: var(--orange); }
+    .cat-card--invalid   .cat-count, .cat-card--invalid   .cat-label { color: var(--red);    }
+
+    /* ── Exportação ─────────────────────────────────────────────────────── */
+    #export-section { display: none; }
+    .export-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+    }
+    .export-card {
+      border-radius: 10px;
+      padding: 16px;
+      border: 1px solid;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .export-card--perfect   { background: var(--green-dim);  border-color: var(--green);  }
+    .export-card--corrected { background: var(--yellow-dim); border-color: var(--yellow); }
+    .export-card--risk      { background: var(--orange-dim); border-color: var(--orange); }
+    .export-card--invalid   { background: var(--red-dim);    border-color: var(--red);    }
+
+    .export-card .ec-label { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .export-card .ec-count { font-size: 1.3rem; font-weight: 800; }
+    .export-card--perfect   .ec-label, .export-card--perfect   .ec-count { color: var(--green);  }
+    .export-card--corrected .ec-label, .export-card--corrected .ec-count { color: var(--yellow); }
+    .export-card--risk      .ec-label, .export-card--risk      .ec-count { color: var(--orange); }
+    .export-card--invalid   .ec-label, .export-card--invalid   .ec-count { color: var(--red);    }
+
+    .btn-export-perfect   { background: var(--green);  color: #000; }
+    .btn-export-corrected { background: var(--yellow); color: #000; }
+    .btn-export-risk      { background: var(--orange); color: #fff; }
+    .btn-export-invalid   { background: var(--red);    color: #fff; }
+
+    /* ── Preview ─────────────────────────────────────────────────────────── */
+    .preview-info   { font-size: .78rem; color: var(--text-dim); margin-bottom: 8px; }
+    .preview-scroll { overflow-x: auto; }
+    .preview-table  { border-collapse: collapse; font-size: .78rem; width: 100%; }
+    .preview-table th {
+      background: var(--surface2); color: var(--accent);
+      padding: 6px 10px; border: 1px solid var(--border);
+      text-align: left; white-space: nowrap;
+    }
+    .preview-table td {
+      padding: 5px 10px; border: 1px solid var(--border);
+      color: var(--text-dim); white-space: nowrap; max-width: 200px;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .preview-table tr:first-child td { color: var(--text); font-weight: 600; }
+
+    /* ── Erro ────────────────────────────────────────────────────────────── */
+    #error-message {
+      display: none;
+      background: var(--red-dim);
+      border: 1px solid var(--red);
+      color: var(--red);
+      border-radius: 7px;
+      padding: 12px 16px;
+      font-size: .88rem;
+      margin-bottom: 16px;
+    }
+
+    /* ── Format toggle ───────────────────────────────────────────────────── */
+    .format-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .fmt-btn {
+      padding: 8px 16px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-dim);
+      font-size: .83rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .fmt-btn:hover { border-color: var(--accent); color: var(--text); }
+    .fmt-btn--active {
+      background: #4f8ef722;
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Tip / Callout ───────────────────────────────────────────────────── */
+    .tip-box {
+      background: #4f8ef712;
+      border: 1px solid #4f8ef755;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .tip-box .tip-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
+    .tip-box .tip-body { font-size: .84rem; color: var(--text-dim); line-height: 1.6; }
+    .tip-box .tip-body strong { color: var(--text); }
+    .tip-box .tip-body a { color: var(--accent); text-decoration: none; }
+    .tip-box .tip-body a:hover { text-decoration: underline; }
+    .tip-box .tip-steps { margin-top: 8px; padding-left: 4px; list-style: none; }
+    .tip-box .tip-steps li { padding: 2px 0; }
+    .tip-box .tip-steps li::before { content: '→ '; color: var(--accent); font-weight: 700; }
+
+    /* Aviso de formato JSON ativo */
+    .json-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #00d26a18; border: 1px solid var(--green);
+      color: var(--green); border-radius: 5px;
+      padding: 4px 10px; font-size: .78rem; font-weight: 700;
+      margin-top: 8px;
+    }
+
+    /* ── Misc ────────────────────────────────────────────────────────────── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    .text-dim { color: var(--text-dim); font-size: .82rem; }
+    .mt-10 { margin-top: 10px; }
+    .mt-16 { margin-top: 16px; }
+
+    @media (max-width: 600px) {
+      .form-row { flex-direction: column; }
+      .metrics-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────────────────────── -->
+<header>
+  <div class="container">
+    <span class="logo">🏙️</span>
+    <div>
+      <h1>Engine de Validação de Endereços</h1>
+      <p>Cruzamento fonético PT-BR · Jaro-Winkler · Processamento via Stream · 100% local</p>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── ERRO GLOBAL ───────────────────────────────────────────────────── -->
+  <div id="error-message"></div>
+
+  <!-- ── PASSO 1: BASE DE REFERÊNCIA ──────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">📚 Passo 1 — Base de Referência (CEP Lookup)</div>
+
+    <!-- Tip: OpenCEP download -->
+    <div class="tip-box">
+      <span class="tip-icon">💡</span>
+      <div class="tip-body">
+        <strong>Não tem uma base de CEPs?</strong> Use a base pública do projeto
+        <a href="https://github.com/SeuAliado/OpenCEP/releases" target="_blank" rel="noopener">OpenCEP no GitHub ↗</a>
+        — gratuita e atualizada.<br>
+        <ul class="tip-steps">
+          <li>Acesse o link acima e baixe o arquivo <strong>v1.zip</strong> da versão mais recente</li>
+          <li>Descompacte o zip — você verá uma pasta chamada <strong>v1</strong> com milhares de arquivos <strong>.json</strong> (um por CEP)</li>
+          <li>Abaixo, selecione <strong>Pasta OpenCEP (v1)</strong> e aponte para essa pasta — a ferramenta lê todos os arquivos automaticamente</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Seletor de formato -->
+    <div class="format-toggle">
+      <button class="fmt-btn fmt-btn--active" id="fmt-btn-folder" data-fmt="folder">📂 Pasta OpenCEP (v1)</button>
+      <button class="fmt-btn" id="fmt-btn-csv" data-fmt="csv">📄 CSV / TXT</button>
+    </div>
+
+    <!-- ── Modo: Pasta OpenCEP ── -->
+    <div id="ref-mode-folder">
+      <p class="text-dim" style="margin-bottom:12px">
+        Selecione a pasta <strong style="color:var(--text)">v1</strong> extraída do zip. A ferramenta lê todos os <strong style="color:var(--text)">.json</strong> em paralelo e monta o dicionário de CEPs.
+      </p>
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label>Pasta v1 (OpenCEP)</label>
+          <input type="file" id="ref-folder" webkitdirectory accept=".json">
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <button class="btn btn-outline btn-sm" id="btn-load-folder" style="margin-top:auto">⬆️ Carregar Pasta</button>
+        </div>
+      </div>
+      <div id="ref-folder-info" class="text-dim" style="margin-top:6px"></div>
+    </div>
+
+    <!-- ── Modo: CSV ── -->
+    <div id="ref-mode-csv" style="display:none">
+      <p class="text-dim" style="margin-bottom:12px">
+        Arquivo CSV com a base de CEPs. Será carregado inteiramente na memória como dicionário.
+      </p>
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label>Arquivo CSV de referência</label>
+          <input type="file" id="ref-file" accept=".csv,.txt,.tsv">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Coluna CEP (nº)</label>
+          <input type="number" id="ref-col-cep" value="0" min="0" max="50">
+        </div>
+        <div class="form-group">
+          <label>Coluna Logradouro (nº)</label>
+          <input type="number" id="ref-col-addr" value="1" min="0" max="50">
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <div class="checkbox-row mt-10">
+            <input type="checkbox" id="ref-has-header" checked>
+            <label for="ref-has-header">Possui cabeçalho</label>
+          </div>
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <button class="btn btn-outline btn-sm" id="btn-load-ref">⬆️ Carregar Base</button>
+        </div>
+      </div>
+      <div id="ref-preview" class="mt-10"></div>
+    </div>
+
+    <div id="ref-status" class="mt-10"></div>
+  </div>
+
+  <!-- ── PASSO 2: ARQUIVO DE TRABALHO ─────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">📄 Passo 2 — Arquivo de Trabalho</div>
+    <p class="text-dim" style="margin-bottom:16px">
+      Arquivo com os registros a validar. Processado linha a linha via stream — sem carregar tudo na memória.
+    </p>
+
+    <div class="form-row">
+      <div class="form-group" style="flex:2">
+        <label>Arquivo de trabalho (CSV)</label>
+        <input type="file" id="work-file" accept=".csv,.txt,.tsv">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Coluna ID (nº)</label>
+        <input type="number" id="work-col-id" value="0" min="0" max="50">
+      </div>
+      <div class="form-group">
+        <label>Coluna CEP (nº)</label>
+        <input type="number" id="work-col-cep" value="1" min="0" max="50">
+      </div>
+      <div class="form-group">
+        <label>Coluna Endereço (nº)</label>
+        <input type="number" id="work-col-addr" value="2" min="0" max="50">
+      </div>
+      <div class="form-group" style="justify-content:flex-end">
+        <div class="checkbox-row mt-10">
+          <input type="checkbox" id="work-has-header" checked>
+          <label for="work-has-header">Possui cabeçalho</label>
+        </div>
+      </div>
+    </div>
+
+    <div id="work-preview" class="mt-10"></div>
+  </div>
+
+  <!-- ── PASSO 3: PARÂMETROS ───────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">⚙️ Passo 3 — Parâmetros de Classificação</div>
+
+    <div class="slider-group">
+      <div class="slider-row">
+        <span style="font-size:.83rem;color:var(--text-dim);min-width:180px">🟢 Limiar Sucesso Total</span>
+        <input type="range" id="slider-perfect" min="50" max="100" value="95" step="1">
+        <span class="slider-val" id="slider-perfect-val">95%</span>
+      </div>
+      <div class="slider-row">
+        <span style="font-size:.83rem;color:var(--text-dim);min-width:180px">🟡 Limiar Corrigido</span>
+        <input type="range" id="slider-corrected" min="0" max="94" value="70" step="1">
+        <span class="slider-val" id="slider-corrected-val">70%</span>
+      </div>
+    </div>
+
+    <div class="thresholds-legend">
+      <div class="legend-pill pill-green">
+        ✅ Sucesso Total
+        <span id="label-range-perfect">≥ 95%</span>
+      </div>
+      <div class="legend-pill pill-yellow">
+        ⚠️ Corrigido
+        <span id="label-range-corrected">70% – 94%</span>
+      </div>
+      <div class="legend-pill pill-orange">
+        🔶 Risco / Divergente
+        <span id="label-range-risk">1% – 69%</span>
+      </div>
+      <div class="legend-pill pill-red">
+        ❌ CEP Inválido
+        <span>CEP não encontrado na base</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CONTROLES ─────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">🚀 Controles</div>
+    <div class="action-row">
+      <button class="btn btn-primary" id="btn-start">▶️ Iniciar Processamento</button>
+      <button class="btn btn-outline" id="btn-pause" disabled>⏸️ Pausar</button>
+      <button class="btn btn-danger"  id="btn-cancel" disabled>⛔ Cancelar</button>
+      <span id="processing-status" style="margin-left:8px"></span>
+    </div>
+  </div>
+
+  <!-- ── DASHBOARD ─────────────────────────────────────────────────────── -->
+  <div id="dashboard">
+    <div class="card">
+      <div class="card-title">📊 Dashboard em Tempo Real</div>
+
+      <!-- Métricas principais -->
+      <div class="metrics-row">
+        <div class="metric-box">
+          <div class="metric-label">Total Processado</div>
+          <div class="metric-value" id="counter-total">0</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Tempo Decorrido</div>
+          <div class="metric-value" id="timer-elapsed" style="font-size:1.2rem">00:00:00</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">ETA (estimativa)</div>
+          <div class="metric-value" id="timer-eta" style="font-size:1.2rem">--:--:--</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Velocidade</div>
+          <div class="metric-value" id="records-per-sec" style="font-size:1.1rem">--</div>
+        </div>
+      </div>
+
+      <!-- Barra geral de progresso -->
+      <div class="overall-bar-wrap">
+        <div class="overall-bar-fill" id="bar-overall"></div>
+      </div>
+      <div class="bar-label" id="pct-overall">0.0%</div>
+
+      <!-- Cards por categoria -->
+      <div class="categories-grid">
+        <div class="cat-card cat-card--perfect">
+          <div class="cat-icon">✅</div>
+          <div class="cat-label">Sucesso Total</div>
+          <div class="cat-count" id="counter-perfect">0</div>
+          <div class="cat-pct"  id="pct-perfect">0.0%</div>
+          <div class="cat-bar-wrap"><div class="cat-bar-fill" id="bar-perfect"></div></div>
+        </div>
+
+        <div class="cat-card cat-card--corrected">
+          <div class="cat-icon">⚠️</div>
+          <div class="cat-label">Corrigidos</div>
+          <div class="cat-count" id="counter-corrected">0</div>
+          <div class="cat-pct"  id="pct-corrected">0.0%</div>
+          <div class="cat-bar-wrap"><div class="cat-bar-fill" id="bar-corrected"></div></div>
+        </div>
+
+        <div class="cat-card cat-card--risk">
+          <div class="cat-icon">🔶</div>
+          <div class="cat-label">Risco / Divergente</div>
+          <div class="cat-count" id="counter-risk">0</div>
+          <div class="cat-pct"  id="pct-risk">0.0%</div>
+          <div class="cat-bar-wrap"><div class="cat-bar-fill" id="bar-risk"></div></div>
+        </div>
+
+        <div class="cat-card cat-card--invalid">
+          <div class="cat-icon">❌</div>
+          <div class="cat-label">CEP Inválido</div>
+          <div class="cat-count" id="counter-invalid">0</div>
+          <div class="cat-pct"  id="pct-invalid">0.0%</div>
+          <div class="cat-bar-wrap"><div class="cat-bar-fill" id="bar-invalid"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EXPORTAÇÃO ────────────────────────────────────────────────────── -->
+  <div id="export-section">
+    <div class="card">
+      <div class="card-title">💾 Exportar Resultados (CSV)</div>
+      <p class="text-dim" style="margin-bottom:18px">
+        Cada arquivo contém: ID_ORIGINAL, CEP, ENDERECO_ORIGINAL, ENDERECO_BASE_OFICIAL, SCORE_FINAL, METODO_BATIMENTO
+      </p>
+
+      <div class="export-grid">
+        <div class="export-card export-card--perfect">
+          <div class="ec-label">✅ Sucesso Total</div>
+          <div class="ec-count" id="export-perfect-count">0</div>
+          <button class="btn btn-export-perfect btn-sm" id="btn-export-perfect">⬇️ Baixar CSV</button>
+        </div>
+        <div class="export-card export-card--corrected">
+          <div class="ec-label">⚠️ Corrigidos</div>
+          <div class="ec-count" id="export-corrected-count">0</div>
+          <button class="btn btn-export-corrected btn-sm" id="btn-export-corrected">⬇️ Baixar CSV</button>
+        </div>
+        <div class="export-card export-card--risk">
+          <div class="ec-label">🔶 Risco / Divergente</div>
+          <div class="ec-count" id="export-risk-count">0</div>
+          <button class="btn btn-export-risk btn-sm" id="btn-export-risk">⬇️ Baixar CSV</button>
+        </div>
+        <div class="export-card export-card--invalid">
+          <div class="ec-label">❌ CEP Inválido</div>
+          <div class="ec-count" id="export-invalid-count">0</div>
+          <button class="btn btn-export-invalid btn-sm" id="btn-export-invalid">⬇️ Baixar CSV</button>
+        </div>
+      </div>
+
+      <div class="mt-16">
+        <button class="btn btn-outline" id="btn-export-all">📦 Baixar Todos os CSVs</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ── SCRIPTS ──────────────────────────────────────────────────────────── -->
+<script src="phonetics.js"></script>
+<script src="similarity.js"></script>
+<script src="processor.js"></script>
+<script src="ui-manager.js"></script>
+
+<script>
+'use strict';
+
+// ── Referências DOM ─────────────────────────────────────────────────────
+const refFileInput    = document.getElementById('ref-file');
+const workFileInput   = document.getElementById('work-file');
+const btnLoadRef      = document.getElementById('btn-load-ref');
+const btnStart        = document.getElementById('btn-start');
+const btnPause        = document.getElementById('btn-pause');
+const btnCancel       = document.getElementById('btn-cancel');
+const sliderPerfect   = document.getElementById('slider-perfect');
+const sliderCorrected = document.getElementById('slider-corrected');
+
+// ── Estado da aplicação ──────────────────────────────────────────────────
+let refLoaded   = false;
+let pauseState  = false;
+let processing  = false;
+
+// ── Toggle de formato da base de referência ──────────────────────────────
+document.querySelectorAll('.fmt-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('fmt-btn--active'));
+    btn.classList.add('fmt-btn--active');
+
+    const fmt = btn.dataset.fmt;
+    document.getElementById('ref-mode-folder').style.display = fmt === 'folder' ? '' : 'none';
+    document.getElementById('ref-mode-csv').style.display    = fmt === 'csv'    ? '' : 'none';
+  });
+});
+
+// ── Preview CSV ao selecionar arquivo ────────────────────────────────────
+document.getElementById('ref-file').addEventListener('change', async () => {
+  const file = document.getElementById('ref-file').files[0];
+  if (!file) return;
+  try {
+    const { delimiter, rows } = await Processor.previewFile(file, 4);
+    UIManager.renderPreview('ref-preview', rows, delimiter);
+  } catch (e) { /* silencioso */ }
+});
+
+// ── Info ao selecionar pasta OpenCEP ────────────────────────────────────
+document.getElementById('ref-folder').addEventListener('change', () => {
+  const files   = document.getElementById('ref-folder').files;
+  const jsonFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.json'));
+  const infoEl  = document.getElementById('ref-folder-info');
+  if (infoEl) {
+    infoEl.textContent = jsonFiles.length > 0
+      ? `📁 ${UIManager.formatNumber(jsonFiles.length)} arquivos .json encontrados na pasta`
+      : '⚠️ Nenhum arquivo .json encontrado — verifique se selecionou a pasta correta (v1)';
+  }
+});
+
+workFileInput.addEventListener('change', async () => {
+  const file = workFileInput.files[0];
+  if (!file) return;
+  try {
+    const { delimiter, rows } = await Processor.previewFile(file, 4);
+    UIManager.renderPreview('work-preview', rows, delimiter);
+  } catch (e) { /* silencioso */ }
+});
+
+// ── Sliders ──────────────────────────────────────────────────────────────
+function syncSliders() {
+  let vPerfect   = parseInt(sliderPerfect.value);
+  let vCorrected = parseInt(sliderCorrected.value);
+
+  if (vCorrected >= vPerfect) {
+    vCorrected = vPerfect - 1;
+    sliderCorrected.value = vCorrected;
+  }
+  sliderCorrected.max = vPerfect - 1;
+
+  UIManager.updateSliderDisplay(vPerfect, vCorrected);
+  Processor.setThresholds(vPerfect, vCorrected);
+}
+
+sliderPerfect.addEventListener('input', syncSliders);
+sliderCorrected.addEventListener('input', syncSliders);
+syncSliders();
+
+// ── Carregar base — Pasta OpenCEP (vários .json) ─────────────────────────
+document.getElementById('btn-load-folder').addEventListener('click', async () => {
+  const allFiles  = document.getElementById('ref-folder').files;
+  const jsonFiles = Array.from(allFiles).filter(f => f.name.toLowerCase().endsWith('.json'));
+
+  if (jsonFiles.length === 0) {
+    UIManager.showError('Nenhum arquivo .json encontrado. Selecione a pasta v1 extraída do zip.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-load-folder');
+  btn.disabled = true;
+  UIManager.setRefStatus('loading', `Lendo ${UIManager.formatNumber(jsonFiles.length)} arquivos...`);
+
+  try {
+    const count = await Processor.loadReferenceFolder(
+      jsonFiles,
+      (loaded, total) => {
+        const pct = Math.round((loaded / total) * 100);
+        UIManager.setRefStatus('loading',
+          `⏳ Carregando... ${pct}% (${UIManager.formatNumber(loaded)} de ${UIManager.formatNumber(total)} CEPs)`);
+      }
+    );
+    refLoaded = true;
+    UIManager.setRefStatus('ok', `✅ ${UIManager.formatNumber(count)} CEPs carregados (OpenCEP)`);
+  } catch (err) {
+    UIManager.setRefStatus('error', 'Erro: ' + err.message);
+    UIManager.showError(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ── Carregar base — CSV ──────────────────────────────────────────────────
+btnLoadRef.addEventListener('click', async () => {
+  const file = document.getElementById('ref-file').files[0];
+  if (!file) { UIManager.showError('Selecione o arquivo CSV de referência.'); return; }
+
+  const colCep  = parseInt(document.getElementById('ref-col-cep').value);
+  const colAddr = parseInt(document.getElementById('ref-col-addr').value);
+  const hasHdr  = document.getElementById('ref-has-header').checked;
+
+  UIManager.setRefStatus('loading', 'Carregando...');
+  btnLoadRef.disabled = true;
+
+  try {
+    const count = await Processor.loadReferenceFile(
+      file, colCep, colAddr, hasHdr,
+      (loaded, total) => {
+        const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+        UIManager.setRefStatus('loading', `Carregando... ${pct}%`);
+      }
+    );
+    refLoaded = true;
+    UIManager.setRefStatus('ok', `${UIManager.formatNumber(count)} CEPs carregados na memória`);
+  } catch (err) {
+    UIManager.setRefStatus('error', 'Erro ao carregar: ' + err.message);
+    UIManager.showError(err.message);
+  } finally {
+    btnLoadRef.disabled = false;
+  }
+});
+
+// ── Iniciar processamento ────────────────────────────────────────────────
+btnStart.addEventListener('click', async () => {
+  if (!refLoaded) {
+    UIManager.showError('Carregue a base de referência antes de iniciar.');
+    return;
+  }
+  const file = workFileInput.files[0];
+  if (!file) {
+    UIManager.showError('Selecione o arquivo de trabalho.');
+    return;
+  }
+
+  pauseState = false;
+  processing = true;
+
+  UIManager.showDashboard();
+  UIManager.setProcessingState('processing');
+  UIManager.startTimer();
+
+  const config = {
+    colId:     parseInt(document.getElementById('work-col-id').value),
+    colCep:    parseInt(document.getElementById('work-col-cep').value),
+    colAddress:parseInt(document.getElementById('work-col-addr').value),
+    hasHeader: document.getElementById('work-has-header').checked,
+  };
+
+  await Processor.processWorkFile(file, config, {
+    onProgress(stats) {
+      UIManager.updateProgress(stats);
+    },
+    onComplete(stats) {
+      UIManager.stopTimer();
+      UIManager.updateProgress(stats);
+      UIManager.setProcessingState(stats.cancelled ? 'cancelled' : 'done');
+      UIManager.showExport(stats);
+      processing = false;
+    },
+    onError(err) {
+      UIManager.stopTimer();
+      UIManager.setProcessingState('error');
+      UIManager.showError('Erro durante o processamento: ' + err.message);
+      processing = false;
+    },
+  });
+});
+
+// ── Pausar / Continuar ───────────────────────────────────────────────────
+btnPause.addEventListener('click', () => {
+  if (!pauseState) {
+    pauseState = true;
+    Processor.pause();
+    UIManager.setProcessingState('paused');
+    UIManager.stopTimer();
+  } else {
+    pauseState = false;
+    Processor.resume();
+    UIManager.setProcessingState('processing');
+    UIManager.startTimer();
+  }
+});
+
+// ── Cancelar ─────────────────────────────────────────────────────────────
+btnCancel.addEventListener('click', () => {
+  if (!confirm('Cancelar o processamento? Os resultados parciais serão mantidos para exportação.')) return;
+  pauseState = false;
+  Processor.cancel();
+  UIManager.stopTimer();
+  UIManager.setProcessingState('cancelled');
+});
+
+// ── Exportação ────────────────────────────────────────────────────────────
+const exportMap = {
+  'btn-export-perfect':   ['perfect',   'validacao_sucesso_total.csv'],
+  'btn-export-corrected': ['corrected', 'validacao_corrigidos.csv'],
+  'btn-export-risk':      ['risk',      'validacao_risco_divergente.csv'],
+  'btn-export-invalid':   ['invalid',   'validacao_cep_invalido.csv'],
+};
+
+Object.entries(exportMap).forEach(([btnId, [cat, fname]]) => {
+  document.getElementById(btnId).addEventListener('click', () => {
+    Processor.downloadCSV(cat, fname);
+  });
+});
+
+document.getElementById('btn-export-all').addEventListener('click', async () => {
+  for (const [, [cat, fname]] of Object.entries(exportMap)) {
+    Processor.downloadCSV(cat, fname);
+    await new Promise(r => setTimeout(r, 400)); // pequeno delay entre downloads
+  }
+});
+</script>
+</body>
+</html>
