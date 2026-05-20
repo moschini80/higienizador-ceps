@@ -29,8 +29,8 @@ const Processor = (() => {
   let thresholdPerfect   = 95;
   let thresholdCorrected = 70;
 
-  // Engine fonética selecionada: 'ptbr' | 'levenshtein' (futuro)
-  let phoneticEngine = 'ptbr';
+  // Engine fonética selecionada: 'ptbr' | 'jw-optimized'
+  let phoneticEngine = 'jw-optimized';
 
   function setPhoneticEngine(engine) {
     phoneticEngine = engine || 'ptbr';
