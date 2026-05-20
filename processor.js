@@ -29,6 +29,13 @@ const Processor = (() => {
   let thresholdPerfect   = 95;
   let thresholdCorrected = 70;
 
+  // Engine fonética selecionada: 'ptbr' | 'levenshtein' (futuro)
+  let phoneticEngine = 'ptbr';
+
+  function setPhoneticEngine(engine) {
+    phoneticEngine = engine || 'ptbr';
+  }
+
   // ── Utilitários CSV ─────────────────────────────────────────────────────
 
   function detectDelimiter(line) {
@@ -243,8 +250,11 @@ const Processor = (() => {
 
     const normOrig = PhoneticsPTBR.normalize(addressOriginal);
     const normRef  = PhoneticsPTBR.normalize(officialAddress);
-    const phonOrig = PhoneticsPTBR.phoneticCode(addressOriginal);
-    const phonRef  = PhoneticsPTBR.phoneticCode(officialAddress);
+
+    let phonOrig, phonRef;
+    // Futuramente: outros engines aqui (case 'levenshtein': ...)
+    phonOrig = PhoneticsPTBR.phoneticCode(addressOriginal);
+    phonRef  = PhoneticsPTBR.phoneticCode(officialAddress);
 
     const { score, method } = Similarity.computeScore(normOrig, normRef, phonOrig, phonRef);
 
@@ -503,7 +513,7 @@ const Processor = (() => {
     loadReferenceFolder,
     processWorkFile,
     pause, resume, cancel,
-    setThresholds,
+    setThresholds, setPhoneticEngine,
     downloadCSV, generateCSVBlob,
     previewFile, detectDelimiter,
     getStats, getReferenceSize, getResults, isProcessing,
