@@ -251,12 +251,17 @@ const Processor = (() => {
     const normOrig = PhoneticsPTBR.normalize(addressOriginal);
     const normRef  = PhoneticsPTBR.normalize(officialAddress);
 
-    let phonOrig, phonRef;
-    // Futuramente: outros engines aqui (case 'levenshtein': ...)
-    phonOrig = PhoneticsPTBR.phoneticCode(addressOriginal);
-    phonRef  = PhoneticsPTBR.phoneticCode(officialAddress);
+    let score, method;
 
-    const { score, method } = Similarity.computeScore(normOrig, normRef, phonOrig, phonRef);
+    if (phoneticEngine === 'jw-optimized') {
+      // Engine 2: Jaro-Winkler com sanitização estrita e expansão de abreviações PT-BR
+      ({ score, method } = SimilarityJWOptimized.computeScore(addressOriginal, officialAddress));
+    } else {
+      // Engine padrão: fonetização PT-BR + Jaro-Winkler composto
+      const phonOrig = PhoneticsPTBR.phoneticCode(addressOriginal);
+      const phonRef  = PhoneticsPTBR.phoneticCode(officialAddress);
+      ({ score, method } = Similarity.computeScore(normOrig, normRef, phonOrig, phonRef));
+    }
 
     let category;
     if (score >= thresholdPerfect)        category = 'perfect';

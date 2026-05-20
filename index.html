@@ -527,7 +527,7 @@
       <label for="select-phonetic-engine" style="font-size:.83rem;color:var(--text-dim);display:block;margin-bottom:6px;">🔡 Algoritmo de Comparação Textual</label>
       <select id="select-phonetic-engine" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 12px;font-size:.9rem;width:100%;max-width:420px;cursor:pointer;">
         <option value="ptbr" selected>Fonetização PT-BR (padrão) — dígrafos, Ç/S, S intervocálico</option>
-        <option value="levenshtein" disabled>Distância de Levenshtein (em breve)</option>
+        <option value="jw-optimized">JW Otimizado — sanitização estrita + expansão de abreviações PT-BR</option>
       </select>
     </div>
 
@@ -685,6 +685,7 @@
 <!-- ── SCRIPTS ──────────────────────────────────────────────────────────── -->
 <script src="phonetics.js"></script>
 <script src="similarity.js"></script>
+<script src="similarity-jw-optimized.js"></script>
 <script src="processor.js"></script>
 <script src="ui-manager.js"></script>
 
