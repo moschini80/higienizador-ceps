@@ -1,11 +1,11 @@
-CEP,LOGRADOURO
-01001900,Praça da Sé 108
-01310100,Avenida Paulista 1000
-20040020,Rua da Quitanda 86
-30130010,Rua dos Carijós 55
-04538133,Rua Funchal 418
-80010180,Rua XV de Novembro 340
-90010150,Rua dos Andradas 1234
-01310902,Avenida Paulista 900
-69010050,Rua Guilherme Moreira 10
-41810000,Avenida Tancredo Neves 2539
+CEP,LOGRADOURO,MUNICIPIO,UF
+01001900,Praça da Sé 108,São Paulo,SP
+01310100,Avenida Paulista 1000,São Paulo,SP
+20040020,Rua da Quitanda 86,Rio de Janeiro,RJ
+30130010,Rua dos Carijós 55,Belo Horizonte,MG
+04538133,Rua Funchal 418,São Paulo,SP
+80010180,Rua XV de Novembro 340,Curitiba,PR
+90010150,Rua dos Andradas 1234,Porto Alegre,RS
+01310902,Avenida Paulista 900,São Paulo,SP
+69010050,Rua Guilherme Moreira 10,Manaus,AM
+41810000,Avenida Tancredo Neves 2539,Salvador,BA

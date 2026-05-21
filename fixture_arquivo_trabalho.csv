@@ -1,16 +1,18 @@
-ID,CEP,ENDERECO,OBSERVACAO
-1,01001-900,Praça da Sé 108,Endereço exato — espera score 100 (Exato)
-2,01310-100,Av. Paulista 1000,Abreviação de Avenida — espera Corrigido
-3,20040-020,Rua da Quitanda 86,Endereço exato — espera score 100 (Exato)
-4,30130-010,Rua dos Karijos 55,Troca fonética K/C — espera Corrigido ou Sucesso
-5,04538-133,Rua Funchal 418,Endereço exato — espera score 100 (Exato)
-6,80010-180,Rua 15 de Novembro 340,XV vs numeral 15 — espera Corrigido ou Risco
-7,90010-150,Rua dos Andradaz 1234,Typo leve s→z — espera Sucesso Total
-8,99999-999,Rua Inventada 1,CEP inexistente — espera CEP Inválido
-9,01310-902,Av Paulista 900,Abreviação sem ponto — espera Corrigido
-10,41810-000,Av Tancredo Neves 2539,Abreviação de Avenida — espera Corrigido
-11,01001-900,Rua Completamente Diferente 999,Endereço totalmente errado — espera Risco
-12,20040-020,Rua da Qitanda 86,Typo: falta o U em Quitanda — espera Sucesso Total
-13,30130-010,Rua dos Carijós 55,Exato com acento — espera score 100 (Exato)
-14,04538-133,Rua Fnchal 418,Typo: falta o U em Funchal — espera Corrigido
-15,00000-000,Avenida Inexistente 999,CEP inválido diferente — espera CEP Inválido
+ID,CEP,ENDERECO,MUNICIPIO,UF,OBSERVACAO
+1,01001-900,Praça da Sé 108,São Paulo,SP,Endereço exato — espera score 100 (Exato)
+2,01310-100,Av. Paulista 1000,São Paulo,SP,Abreviação de Avenida — espera Corrigido
+3,20040-020,Rua da Quitanda 86,Rio de Janeiro,RJ,Endereço exato — espera score 100 (Exato)
+4,30130-010,Rua dos Karijos 55,Belo Horizonte,MG,Troca fonética K/C — espera Corrigido ou Sucesso
+5,04538-133,Rua Funchal 418,São Paulo,SP,Endereço exato — espera score 100 (Exato)
+6,80010-180,Rua 15 de Novembro 340,Curitiba,PR,XV vs numeral 15 — espera Corrigido ou Risco
+7,90010-150,Rua dos Andradaz 1234,Porto Alegre,RS,Typo leve s→z — espera Sucesso Total
+8,99999-999,Rua Inventada 1,Cidade Inventada,XX,CEP inexistente — espera CEP Inválido
+9,01310-902,Av Paulista 900,São Paulo,SP,Abreviação sem ponto — espera Corrigido
+10,41810-000,Av Tancredo Neves 2539,Salvador,BA,Abreviação de Avenida — espera Corrigido
+11,01001-900,Rua Completamente Diferente 999,São Paulo,SP,Endereço totalmente errado — espera Risco
+12,20040-020,Rua da Qitanda 86,Rio de Janeiro,RJ,Typo: falta o U em Quitanda — espera Sucesso Total
+13,30130-010,Rua dos Carijós 55,Belo Horizonte,MG,Exato com acento — espera score 100 (Exato)
+14,04538-133,Rua Fnchal 418,São Paulo,SP,Typo: falta o U em Funchal — espera Corrigido
+15,00000-000,Avenida Inexistente 999,Cidade Inexistente,ZZ,CEP inválido diferente — espera CEP Inválido
+16,80010-180,Rua 15 de Novembro 340,Curitiba,RJ,Município OK mas UF errada (PR esperado) — espera penalidade
+17,20040-020,Rua da Quitanda 86,São Paulo,RJ,UF OK mas município errado (Rio esperado) — espera penalidade
