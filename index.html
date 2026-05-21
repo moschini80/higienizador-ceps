@@ -464,6 +464,14 @@
           <label>Coluna Logradouro (nº)</label>
           <input type="number" id="ref-col-addr" value="1" min="0" max="50">
         </div>
+        <div class="form-group">
+          <label>Coluna Município (nº, opcional)</label>
+          <input type="number" id="ref-col-municipio" value="" min="0" max="50" placeholder="-">
+        </div>
+        <div class="form-group">
+          <label>Coluna UF (nº, opcional)</label>
+          <input type="number" id="ref-col-uf" value="" min="0" max="50" placeholder="-">
+        </div>
         <div class="form-group" style="justify-content:flex-end">
           <div class="checkbox-row mt-10">
             <input type="checkbox" id="ref-has-header" checked>
@@ -506,6 +514,14 @@
       <div class="form-group">
         <label>Coluna Endereço (nº)</label>
         <input type="number" id="work-col-addr" value="2" min="0" max="50">
+      </div>
+      <div class="form-group">
+        <label>Coluna Município (nº, opcional)</label>
+        <input type="number" id="work-col-municipio" value="" min="0" max="50" placeholder="-">
+      </div>
+      <div class="form-group">
+        <label>Coluna UF (nº, opcional)</label>
+        <input type="number" id="work-col-uf" value="" min="0" max="50" placeholder="-">
       </div>
       <div class="form-group" style="justify-content:flex-end">
         <div class="checkbox-row mt-10">
@@ -648,7 +664,9 @@
     <div class="card">
       <div class="card-title">💾 Exportar Resultados (CSV)</div>
       <p class="text-dim" style="margin-bottom:18px">
-        Cada arquivo contém: ID_ORIGINAL, CEP, ENDERECO_ORIGINAL, ENDERECO_BASE_OFICIAL, SCORE_FINAL, METODO_BATIMENTO
+        Cada arquivo contém: ID_ORIGINAL, CEP, ENDERECO_ORIGINAL, MUNICIPIO_ORIGINAL, UF_ORIGINAL,
+        ENDERECO_BASE_OFICIAL, MUNICIPIO_BASE_OFICIAL, UF_BASE_OFICIAL,
+        SCORE_LOGRADOURO, SCORE_MUNICIPIO, SCORE_UF, SCORE_FINAL, METODO_BATIMENTO, STATUS_MUNICIPIO, STATUS_UF
       </p>
 
       <div class="export-grid">
@@ -814,6 +832,8 @@ btnLoadRef.addEventListener('click', async () => {
 
   const colCep  = parseInt(document.getElementById('ref-col-cep').value);
   const colAddr = parseInt(document.getElementById('ref-col-addr').value);
+  const colMunicipioRef = document.getElementById('ref-col-municipio').value.trim() !== '' ? parseInt(document.getElementById('ref-col-municipio').value) : null;
+  const colUFRef        = document.getElementById('ref-col-uf').value.trim() !== '' ? parseInt(document.getElementById('ref-col-uf').value) : null;
   const hasHdr  = document.getElementById('ref-has-header').checked;
 
   UIManager.setRefStatus('loading', 'Carregando...');
@@ -821,7 +841,7 @@ btnLoadRef.addEventListener('click', async () => {
 
   try {
     const count = await Processor.loadReferenceFile(
-      file, colCep, colAddr, hasHdr,
+      file, colCep, colAddr, colMunicipioRef, colUFRef, hasHdr,
       (loaded, total) => {
         const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
         UIManager.setRefStatus('loading', `Carregando... ${pct}%`);
@@ -857,10 +877,12 @@ btnStart.addEventListener('click', async () => {
   UIManager.startTimer();
 
   const config = {
-    colId:     parseInt(document.getElementById('work-col-id').value),
-    colCep:    parseInt(document.getElementById('work-col-cep').value),
-    colAddress:parseInt(document.getElementById('work-col-addr').value),
-    hasHeader: document.getElementById('work-has-header').checked,
+    colId:        parseInt(document.getElementById('work-col-id').value),
+    colCep:       parseInt(document.getElementById('work-col-cep').value),
+    colAddress:   parseInt(document.getElementById('work-col-addr').value),
+    colMunicipio: document.getElementById('work-col-municipio').value.trim() !== '' ? parseInt(document.getElementById('work-col-municipio').value) : null,
+    colUF:        document.getElementById('work-col-uf').value.trim() !== '' ? parseInt(document.getElementById('work-col-uf').value) : null,
+    hasHeader:    document.getElementById('work-has-header').checked,
   };
 
   await Processor.processWorkFile(file, config, {

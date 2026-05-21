@@ -9,7 +9,7 @@
 const Processor = (() => {
 
   // ── Estado interno ──────────────────────────────────────────────────────
-  let referenceMap = new Map(); // CEP (somente dígitos) → endereço original
+  let referenceMap = new Map(); // CEP (somente dígitos) → { logradouro, municipio, uf }
   let isRunning    = false;
   let isPaused     = false;
   let shouldCancel = false;
@@ -100,14 +100,12 @@ const Processor = (() => {
         try {
           const text = await file.text();
           const obj  = JSON.parse(text);
-          const cep  = normalizeCEP(obj.cep);
-          // Monta logradouro completo: logradouro + bairro + localidade/UF
-          const parts = [obj.logradouro, obj.bairro, obj.localidade]
-            .map(v => (v || '').trim())
-            .filter(Boolean);
-          const address = parts.join(', ') || '';
-          if (cep && address) {
-            referenceMap.set(cep, address);
+          const cep       = normalizeCEP(obj.cep);
+          const logradouro = (obj.logradouro || '').trim();
+          const municipio  = (obj.localidade  || '').trim();
+          const uf         = (obj.uf          || '').trim().toUpperCase();
+          if (cep && logradouro) {
+            referenceMap.set(cep, { logradouro, municipio, uf });
           }
         } catch (_) { /* arquivo inválido — ignora */ }
         loaded++;
@@ -183,7 +181,7 @@ const Processor = (() => {
    * @param {Function} onProgress  (loaded, total) → void
    * @returns {Promise<number>}    total de CEPs carregados
    */
-  async function loadReferenceFile(file, colCep, colAddress, hasHeader, onProgress) {
+  async function loadReferenceFile(file, colCep, colAddress, colMunicipio, colUF, hasHeader, onProgress) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
@@ -203,12 +201,14 @@ const Processor = (() => {
             const line = lines[i];
             if (!line.trim()) continue;
 
-            const fields = parseCSVLine(line, delimiter);
-            const cep     = normalizeCEP(fields[colCep]);
-            const address = (fields[colAddress] || '').trim();
+            const fields     = parseCSVLine(line, delimiter);
+            const cep        = normalizeCEP(fields[colCep]);
+            const logradouro = (fields[colAddress]   || '').trim();
+            const municipio  = (fields[colMunicipio] != null ? fields[colMunicipio] : '').trim();
+            const uf         = (fields[colUF]        != null ? fields[colUF]        : '').trim().toUpperCase();
 
-            if (cep && address) {
-              referenceMap.set(cep, address);
+            if (cep && logradouro) {
+              referenceMap.set(cep, { logradouro, municipio, uf });
             }
 
             if (onProgress && i % 20000 === 0) {
@@ -232,48 +232,89 @@ const Processor = (() => {
   /**
    * Classifica um único registro aplicando o pipeline de batimento.
    */
-  function classifyRecord(id, cepRaw, addressOriginal) {
+  function classifyRecord(id, cepRaw, addressOriginal, municipioOriginal = '', ufOriginal = '') {
     const cep = normalizeCEP(cepRaw);
 
     if (!referenceMap.has(cep)) {
       return {
         id_original: id, cep: cepRaw,
         endereco_original: addressOriginal,
+        municipio_original: municipioOriginal,
+        uf_original: ufOriginal,
         endereco_base_oficial: '',
+        municipio_base_oficial: '',
+        uf_base_oficial: '',
+        score_logradouro: 0,
+        score_municipio: 0,
+        score_uf: 0,
         score_final: 0,
         metodo_batimento: 'N/A',
+        status_municipio: 'N/A',
+        status_uf: 'N/A',
         category: 'invalid',
       };
     }
 
-    const officialAddress = referenceMap.get(cep);
+    const ref = referenceMap.get(cep);
+    const officialAddress  = ref.logradouro;
+    const officialMunicipio = ref.municipio;
+    const officialUF       = ref.uf;
 
     const normOrig = PhoneticsPTBR.normalize(addressOriginal);
     const normRef  = PhoneticsPTBR.normalize(officialAddress);
 
-    let score, method;
+    let scoreLogradouro, method;
 
     if (phoneticEngine === 'jw-optimized') {
-      // Engine 2: Jaro-Winkler com sanitização estrita e expansão de abreviações PT-BR
-      ({ score, method } = SimilarityJWOptimized.computeScore(addressOriginal, officialAddress));
+      ({ score: scoreLogradouro, method } = SimilarityJWOptimized.computeScore(addressOriginal, officialAddress));
     } else {
-      // Engine padrão: fonetização PT-BR + Jaro-Winkler composto
       const phonOrig = PhoneticsPTBR.phoneticCode(addressOriginal);
       const phonRef  = PhoneticsPTBR.phoneticCode(officialAddress);
-      ({ score, method } = Similarity.computeScore(normOrig, normRef, phonOrig, phonRef));
+      ({ score: scoreLogradouro, method } = Similarity.computeScore(normOrig, normRef, phonOrig, phonRef));
     }
 
+    // ── Validação de Município ────────────────────────────────────────────
+    const normMunicOrig = PhoneticsPTBR.normalize(municipioOriginal);
+    const normMunicRef  = PhoneticsPTBR.normalize(officialMunicipio);
+    const scoreMunicipio = (normMunicOrig && normMunicRef)
+      ? Math.round(Similarity.jaroWinkler(normMunicOrig, normMunicRef) * 100)
+      : null; // null = não informado
+    const statusMunicipio = scoreMunicipio === null ? 'N/I'
+      : scoreMunicipio >= 90 ? 'OK' : 'DIVERGENTE';
+
+    // ── Validação de UF ───────────────────────────────────────────────────
+    const ufNorm        = (ufOriginal || '').trim().toUpperCase();
+    const scoreUF       = (ufNorm && officialUF)
+      ? (ufNorm === officialUF ? 100 : 0)
+      : null; // null = não informado
+    const statusUF = scoreUF === null ? 'N/I'
+      : scoreUF === 100 ? 'OK' : 'DIVERGENTE';
+
+    // ── Score final: logradouro é base; divergências penalizam ────────────
+    let scoreFinal = scoreLogradouro;
+    if (scoreMunicipio !== null && scoreMunicipio < 90) scoreFinal = Math.round(scoreFinal * 0.8);
+    if (scoreUF !== null && scoreUF < 100)             scoreFinal = Math.round(scoreFinal * 0.9);
+
     let category;
-    if (score >= thresholdPerfect)        category = 'perfect';
-    else if (score >= thresholdCorrected) category = 'corrected';
-    else                                  category = 'risk';
+    if (scoreFinal >= thresholdPerfect)        category = 'perfect';
+    else if (scoreFinal >= thresholdCorrected) category = 'corrected';
+    else                                       category = 'risk';
 
     return {
       id_original: id, cep: cepRaw,
       endereco_original: addressOriginal,
+      municipio_original: municipioOriginal,
+      uf_original: ufOriginal,
       endereco_base_oficial: officialAddress,
-      score_final: score,
+      municipio_base_oficial: officialMunicipio,
+      uf_base_oficial: officialUF,
+      score_logradouro: scoreLogradouro,
+      score_municipio: scoreMunicipio ?? '',
+      score_uf: scoreUF ?? '',
+      score_final: scoreFinal,
       metodo_batimento: method,
+      status_municipio: statusMunicipio,
+      status_uf: statusUF,
       category,
     };
   }
@@ -309,7 +350,7 @@ const Processor = (() => {
       bytesRead: 0, fileSize: file.size,
     };
 
-    const { colId, colCep, colAddress, hasHeader } = config;
+    const { colId, colCep, colAddress, colMunicipio, colUF, hasHeader } = config;
 
     try {
       const stream  = file.stream();
@@ -331,14 +372,16 @@ const Processor = (() => {
 
           if (!detectedDelim) detectedDelim = detectDelimiter(line);
 
-          const fields  = parseCSVLine(line, detectedDelim);
-          const id      = (fields[colId]  || '').trim() || String(stats.processed + 1);
-          const cep     = (fields[colCep] || '').trim();
-          const address = (fields[colAddress] || '').trim();
+          const fields     = parseCSVLine(line, detectedDelim);
+          const id         = (fields[colId]      || '').trim() || String(stats.processed + 1);
+          const cep        = (fields[colCep]     || '').trim();
+          const address    = (fields[colAddress] || '').trim();
+          const municipio  = colMunicipio != null ? (fields[colMunicipio] || '').trim() : '';
+          const uf         = colUF        != null ? (fields[colUF]        || '').trim() : '';
 
           if (!cep && !address) continue;
 
-          const record = classifyRecord(id, cep, address);
+          const record = classifyRecord(id, cep, address, municipio, uf);
           results[record.category].push(record);
           stats[record.category]++;
           stats.processed++;
@@ -427,7 +470,7 @@ const Processor = (() => {
 
   // ── Geração de CSV e exportação ─────────────────────────────────────────
 
-  const CSV_HEADER = 'ID_ORIGINAL,CEP,ENDERECO_ORIGINAL,ENDERECO_BASE_OFICIAL,SCORE_FINAL,METODO_BATIMENTO';
+  const CSV_HEADER = 'ID_ORIGINAL,CEP,ENDERECO_ORIGINAL,MUNICIPIO_ORIGINAL,UF_ORIGINAL,ENDERECO_BASE_OFICIAL,MUNICIPIO_BASE_OFICIAL,UF_BASE_OFICIAL,SCORE_LOGRADOURO,SCORE_MUNICIPIO,SCORE_UF,SCORE_FINAL,METODO_BATIMENTO,STATUS_MUNICIPIO,STATUS_UF';
 
   function escapeField(v) {
     const s = String(v === null || v === undefined ? '' : v);
@@ -438,8 +481,11 @@ const Processor = (() => {
 
   function recordToCSVRow(rec) {
     return [
-      rec.id_original, rec.cep, rec.endereco_original,
-      rec.endereco_base_oficial, rec.score_final, rec.metodo_batimento,
+      rec.id_original, rec.cep,
+      rec.endereco_original, rec.municipio_original, rec.uf_original,
+      rec.endereco_base_oficial, rec.municipio_base_oficial, rec.uf_base_oficial,
+      rec.score_logradouro, rec.score_municipio, rec.score_uf, rec.score_final,
+      rec.metodo_batimento, rec.status_municipio, rec.status_uf,
     ].map(escapeField).join(',');
   }
 
